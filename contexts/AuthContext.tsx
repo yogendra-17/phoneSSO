@@ -9,6 +9,7 @@ import {
   signInWithCredential,
 } from 'firebase/auth';
 import { auth, hasValidConfig } from '../config/firebase';
+import { router } from 'expo-router';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
@@ -142,10 +143,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     if (isDemoMode) {
       setUser(null);
+      router.replace('/auth');
       return;
     }
     if (!auth) throw new Error("Firebase not initialized");
     await firebaseSignOut(auth);
+    router.replace('/auth');
   };
 
   const value: AuthContextType = {
