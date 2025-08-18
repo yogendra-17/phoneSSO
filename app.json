@@ -15,19 +15,27 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.firebaseauthapp"
+      "bundleIdentifier": "com.yourcompany.firebaseauthapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "We use the camera to scan pairing QR codes."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.firebaseauthapp"
+      "package": "com.yourcompany.firebaseauthapp",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-barcode-scanner",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
