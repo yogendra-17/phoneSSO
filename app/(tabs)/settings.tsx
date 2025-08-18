@@ -1,11 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bell, Lock, Moon, Globe, ChevronRight } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = React.useState(false);
+  const [apiBase, setApiBase] = React.useState<string>(process.env.EXPO_PUBLIC_API_BASE || 'http://127.0.0.1:8080/api');
+  const [editing, setEditing] = React.useState(false);
+  const { forceUpdate } = React.useMemo(() => ({ forceUpdate: () => {} }), []);
+  // Lazy import to avoid circular
+  const { setApiBaseOverride } = require('../../services/api');
 
   const settingsItems = [
     {
@@ -29,9 +34,9 @@ export default function SettingsScreen() {
     },
     {
       icon: Globe,
-      title: 'Language',
+      title: 'Orchestrator API Base',
       type: 'navigation',
-      subtitle: 'English',
+      subtitle: apiBase,
     },
   ];
 
@@ -75,6 +80,23 @@ export default function SettingsScreen() {
         
         <View style={styles.settingsSection}>
           {settingsItems.map(renderSettingItem)}
+        </View>
+
+        <View style={[styles.settingsSection, { marginTop: 16, padding: 16 }]}> 
+          <Text style={styles.settingTitle}>API Base URL</Text>
+          <TextInput
+            style={styles.input}
+            value={apiBase}
+            onChangeText={setApiBase}
+            autoCapitalize="none"
+            placeholder="http://127.0.0.1:8080/api"
+          />
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={() => { setApiBaseOverride(apiBase); }}
+          >
+            <Text style={styles.saveButtonText}>Apply</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -142,5 +164,24 @@ const styles = StyleSheet.create({
   },
   settingRight: {
     alignItems: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    backgroundColor: '#fff',
+  },
+  saveButton: {
+    marginTop: 12,
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
