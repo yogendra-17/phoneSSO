@@ -1,43 +1,16 @@
-import { FirebaseApp, initializeApp } from 'firebase/app';
-import { Auth, getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
+// Configure Google Sign-In
+GoogleSignin.configure({
+  webClientId: '808254346543-636a2mump211q24nrql4s9jdcucjd6gq.apps.googleusercontent.com', // From GoogleService-Info.plist
+  iosClientId: '808254346543-636a2mump211q24nrql4s9jdcucjd6gq.apps.googleusercontent.com', // From GoogleService-Info.plist
+  offlineAccess: true,
+  forceCodeForRefreshToken: true,
+});
 
-// Check if we have a valid Firebase configuration from environment variables
-const firebaseApiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
-export const hasValidConfig = !!(firebaseApiKey && firebaseApiKey !== 'YOUR_API_KEY');
+// Initialize Firebase Auth
+const firebaseAuth = auth();
 
-// Only initialize Firebase if the configuration is valid
-if (hasValidConfig) {
-  const firebaseConfig = {
-    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-  };
-
-  app = initializeApp(firebaseConfig);
-
-  // Initialize Auth with platform-specific persistence
-  try {
-    if (Platform.OS === 'web') {
-      auth = getAuth(app);
-    } else {
-      auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage)
-      });
-    }
-  } catch (error) {
-    console.error('Firebase auth initialization error:', error);
-    // Fallback to basic auth instance on error
-    auth = getAuth(app);
-  }
-}
-
-export { auth };
-export default app;
+export { firebaseAuth as auth, GoogleSignin, auth as authModule };
+export type { FirebaseAuthTypes };

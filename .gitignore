@@ -5,3 +5,14 @@ node_modules/
 
 expo-env.d.ts
 # @end expo-cli
+# Firebase config (iOS)
+GoogleService-Info.plist*
+
+.env
+
+GoogleService-Info.plist
+GoogleService-Info.plist.backup
+GoogleService-Info.plist.backup.2
+
+.expo
+

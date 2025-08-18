@@ -15,19 +15,34 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.firebaseauthapp"
+      "bundleIdentifier": "com.yourcompany.firebaseauthapp",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "deploymentTarget": "16.0",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "GoogleSignIn",
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.808254346543-636a2mump211q24nrql4s9jdcucjd6gq"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.firebaseauthapp"
+      "package": "com.yourcompany.firebaseauthapp",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true

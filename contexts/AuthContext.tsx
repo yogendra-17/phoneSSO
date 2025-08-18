@@ -1,29 +1,15 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { 
-  User, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithCredential,
-} from 'firebase/auth';
-import { auth, hasValidConfig } from '../config/firebase';
+import { auth, GoogleSignin, FirebaseAuthTypes, authModule } from '../config/firebase';
 import { router } from 'expo-router';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
-WebBrowser.maybeCompleteAuthSession();
-
 interface AuthContextType {
-  user: User | null;
+  user: FirebaseAuthTypes.User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  isDemoMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,115 +26,71 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Demo user for testing UI
-const createDemoUser = (email: string): Partial<User> => ({
-  uid: 'demo-user-' + Date.now(),
-  email: email,
-  emailVerified: true,
-  displayName: email.split('@')[0],
-  isAnonymous: false,
-  metadata: {},
-  providerData: [],
-  providerId: 'password',
-  tenantId: null,
-  delete: async () => {},
-  getIdToken: async () => 'demo-token',
-  getIdTokenResult: async () => ({ token: 'demo-token', expirationTime: '', authTime: '', issuedAtTime: '', signInProvider: null, signInSecondFactor: null, claims: {} }),
-  reload: async () => {},
-  toJSON: () => ({}),
-});
-
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [loading, setLoading] = useState(true);
-  const isDemoMode = !hasValidConfig;
-
-  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
-  const hasGoogleConfig = !!(googleClientId && googleClientId !== 'YOUR_API_KEY');
-  
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: googleClientId || 'dummy-client-id-for-demo',
-      scopes: ['openid', 'profile', 'email'],
-      redirectUri: AuthSession.makeRedirectUri({ scheme: 'myapp', path: 'auth' }),
-    },
-    {
-      authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-      tokenEndpoint: 'https://oauth2.googleapis.com/token',
-    }
-  );
 
   useEffect(() => {
-    if (isDemoMode || !auth) {
-      setLoading(false);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      console.log('Auth state changed:', user ? user.email : 'No user');
       setUser(user);
-      setLoading(false);
-    }, (error) => {
-      console.error('Auth state change error:', error);
       setLoading(false);
     });
 
     return unsubscribe;
-  }, [isDemoMode]);
-
-  useEffect(() => {
-    if (response?.type === 'success' && !isDemoMode && auth) {
-      const { authentication } = response;
-      if (authentication?.idToken) {
-        const credential = GoogleAuthProvider.credential(authentication.idToken);
-        signInWithCredential(auth, credential).catch((error) => {
-          console.error('Google sign-in error:', error);
-        });
-      }
-    }
-  }, [response, isDemoMode]);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
-    if (isDemoMode) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setUser(createDemoUser(email) as User);
-      return;
+    try {
+      console.log('Attempting to sign in with:', email);
+      const result = await auth.signInWithEmailAndPassword(email, password);
+      console.log('Sign in successful:', result.user.email);
+    } catch (error: any) {
+      console.error('Sign in error:', error);
+      throw error;
     }
-    if (!auth) throw new Error("Firebase not initialized");
-    await signInWithEmailAndPassword(auth, email, password);
   };
 
   const signUp = async (email: string, password: string) => {
-    if (isDemoMode) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setUser(createDemoUser(email) as User);
-      return;
+    try {
+      console.log('Attempting to sign up with:', email);
+      const result = await auth.createUserWithEmailAndPassword(email, password);
+      console.log('Sign up successful:', result.user.email);
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      throw error;
     }
-    if (!auth) throw new Error("Firebase not initialized");
-    await createUserWithEmailAndPassword(auth, email, password);
   };
 
   const signInWithGoogle = async () => {
-    if (isDemoMode) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setUser(createDemoUser('demo@google.com') as User);
-      return;
-    }
+    try {
+      // Check if your device supports Google Play
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      // Get the users ID token
+      await GoogleSignin.signIn();
+      const { idToken } = await GoogleSignin.getTokens();
 
-    if (!hasGoogleConfig) {
-      throw new Error('Google Client ID not configured');
+      // Create a Google credential with the token
+      const googleCredential = authModule.GoogleAuthProvider.credential(idToken);
+
+      // Sign-in the user with the credential
+      await auth.signInWithCredential(googleCredential);
+    } catch (error: any) {
+      console.error('Google sign-in error:', error);
+      throw error;
     }
-    await promptAsync();
   };
 
   const signOut = async () => {
-    if (isDemoMode) {
-      setUser(null);
+    try {
+      await auth.signOut();
+      await GoogleSignin.signOut();
       router.replace('/auth');
-      return;
+    } catch (error: any) {
+      console.error('Sign out error:', error);
+      throw error;
     }
-    if (!auth) throw new Error("Firebase not initialized");
-    await firebaseSignOut(auth);
-    router.replace('/auth');
   };
 
   const value: AuthContextType = {
@@ -158,7 +100,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUp,
     signInWithGoogle,
     signOut,
-    isDemoMode,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

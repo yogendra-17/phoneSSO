@@ -20,7 +20,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, signInWithGoogle, isDemoMode } = useAuth();
+  const { signIn, signUp, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   const handleEmailAuth = async () => {
@@ -64,14 +64,6 @@ export default function AuthScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <View style={styles.formContainer}>
-            {isDemoMode && (
-              <View style={styles.demoModeNotice}>
-                <Text style={styles.demoModeText}>🎮 Demo Mode</Text>
-                <Text style={styles.demoModeSubtext}>
-                  Firebase is not configured. You can use the default credentials to explore the app.
-                </Text>
-              </View>
-            )}
             <Text style={styles.title}>
               {isLogin ? 'Welcome Back' : 'Create Account'}
             </Text>
@@ -106,7 +98,7 @@ export default function AuthScreen() {
               onPress={handleEmailAuth}
               disabled={loading}
             >
-              {loading && !isDemoMode ? (
+              {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.buttonText}>
@@ -163,26 +155,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
-  },
-  demoModeNotice: {
-    backgroundColor: '#eef5ff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#bde0ff',
-  },
-  demoModeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#005a9e',
-  },
-  demoModeSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#005a9e',
-    marginTop: 4,
   },
   title: {
     fontSize: 28,

@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, Mail, User } from 'lucide-react-native';
+import { LogOut, Mail, User, TestTube } from 'lucide-react-native';
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, signInWithGoogle } = useAuth();
+  const [testingGoogle, setTestingGoogle] = useState(false);
 
   const handleSignOut = () => {
     Alert.alert(
@@ -22,6 +23,19 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleTestGoogleSignIn = async () => {
+    setTestingGoogle(true);
+    try {
+      await signInWithGoogle();
+      Alert.alert('Success', 'Google Sign-In test successful!');
+    } catch (error: any) {
+      console.error('Google Sign-In Test Error:', error);
+      Alert.alert('Error', error.message || 'Google Sign-In test failed');
+    } finally {
+      setTestingGoogle(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -33,6 +47,10 @@ export default function ProfileScreen() {
           </View>
           
           <View style={styles.userInfo}>
+            {user?.displayName && (
+              <Text style={styles.displayName}>{user.displayName}</Text>
+            )}
+            
             <View style={styles.infoRow}>
               <Mail size={20} color="#666" />
               <Text style={styles.infoText}>{user?.email}</Text>
@@ -41,7 +59,30 @@ export default function ProfileScreen() {
             <Text style={styles.userIdText}>
               User ID: {user?.uid?.substring(0, 8)}...
             </Text>
+            
+            <Text style={styles.providerText}>
+              Provider: {user?.providerData?.[0]?.providerId || 'Unknown'}
+            </Text>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Testing</Text>
+          
+          <TouchableOpacity 
+            style={[styles.testButton, testingGoogle && styles.testButtonDisabled]} 
+            onPress={handleTestGoogleSignIn}
+            disabled={testingGoogle}
+          >
+            {testingGoogle ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <TestTube size={20} color="#fff" />
+            )}
+            <Text style={styles.testButtonText}>
+              {testingGoogle ? 'Testing...' : 'Test Google Sign-In'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -99,6 +140,12 @@ const styles = StyleSheet.create({
   userInfo: {
     alignItems: 'center',
   },
+  displayName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#1a1a1a',
+  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -114,6 +161,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  providerText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
   section: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -126,12 +178,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 16,
     color: '#1a1a1a',
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#007AFF',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  testButtonDisabled: {
+    backgroundColor: '#ccc',
+    borderColor: '#ccc',
+  },
+  testButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#fff',
   },
   signOutButton: {
     flexDirection: 'row',
