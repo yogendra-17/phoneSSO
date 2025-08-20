@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, Mail, User, TestTube } from 'lucide-react-native';
+import { LogOut, Mail, User } from 'lucide-react-native';
 
 export default function ProfileScreen() {
-  const { user, signOut, signInWithGoogle } = useAuth();
-  const [testingGoogle, setTestingGoogle] = useState(false);
+  const { user, signOut } = useAuth();
 
   const handleSignOut = () => {
     Alert.alert(
@@ -21,19 +20,6 @@ export default function ProfileScreen() {
         },
       ]
     );
-  };
-
-  const handleTestGoogleSignIn = async () => {
-    setTestingGoogle(true);
-    try {
-      await signInWithGoogle();
-      Alert.alert('Success', 'Google Sign-In test successful!');
-    } catch (error: any) {
-      console.error('Google Sign-In Test Error:', error);
-      Alert.alert('Error', error.message || 'Google Sign-In test failed');
-    } finally {
-      setTestingGoogle(false);
-    }
   };
 
   return (
@@ -64,25 +50,6 @@ export default function ProfileScreen() {
               Provider: {user?.providerData?.[0]?.providerId || 'Unknown'}
             </Text>
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Testing</Text>
-          
-          <TouchableOpacity 
-            style={[styles.testButton, testingGoogle && styles.testButtonDisabled]} 
-            onPress={handleTestGoogleSignIn}
-            disabled={testingGoogle}
-          >
-            {testingGoogle ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <TestTube size={20} color="#fff" />
-            )}
-            <Text style={styles.testButtonText}>
-              {testingGoogle ? 'Testing...' : 'Test Google Sign-In'}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -185,26 +152,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 16,
     color: '#1a1a1a',
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  testButtonDisabled: {
-    backgroundColor: '#ccc',
-    borderColor: '#ccc',
-  },
-  testButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-    color: '#fff',
   },
   signOutButton: {
     flexDirection: 'row',

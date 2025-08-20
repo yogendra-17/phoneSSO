@@ -1,14 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { auth, GoogleSignin, FirebaseAuthTypes, authModule } from '../config/firebase';
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseAuthTypes } from '../config/firebase';
 import { router } from 'expo-router';
-import { Platform } from 'react-native';
 
 interface AuthContextType {
-  user: FirebaseAuthTypes.User | null;
+  user: FirebaseAuthTypes | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -27,11 +25,11 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
+  const [user, setUser] = useState<FirebaseAuthTypes | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       console.log('Auth state changed:', user ? user.email : 'No user');
       setUser(user);
       setLoading(false);
@@ -43,7 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('Attempting to sign in with:', email);
-      const result = await auth.signInWithEmailAndPassword(email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
       console.log('Sign in successful:', result.user.email);
     } catch (error: any) {
       console.error('Sign in error:', error);
@@ -54,7 +52,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signUp = async (email: string, password: string) => {
     try {
       console.log('Attempting to sign up with:', email);
-      const result = await auth.createUserWithEmailAndPassword(email, password);
+      const result = await createUserWithEmailAndPassword(auth, email, password);
       console.log('Sign up successful:', result.user.email);
     } catch (error: any) {
       console.error('Sign up error:', error);
@@ -62,30 +60,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signInWithGoogle = async () => {
+  const handleSignOut = async () => {
     try {
-      // Check if your device supports Google Play
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      
-      // Get the users ID token
-      await GoogleSignin.signIn();
-      const { idToken } = await GoogleSignin.getTokens();
-
-      // Create a Google credential with the token
-      const googleCredential = authModule.GoogleAuthProvider.credential(idToken);
-
-      // Sign-in the user with the credential
-      await auth.signInWithCredential(googleCredential);
-    } catch (error: any) {
-      console.error('Google sign-in error:', error);
-      throw error;
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      await auth.signOut();
-      await GoogleSignin.signOut();
+      await signOut(auth);
       router.replace('/auth');
     } catch (error: any) {
       console.error('Sign out error:', error);
@@ -98,8 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loading,
     signIn,
     signUp,
-    signInWithGoogle,
-    signOut,
+    signOut: handleSignOut,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

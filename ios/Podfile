@@ -13,9 +13,6 @@ install! 'cocoapods',
 
 prepare_react_native_project!
 
-# Use modular headers globally for Firebase compatibility
-use_modular_headers!
-
 target 'FirebaseAuthApp' do
   use_expo_modules!
 

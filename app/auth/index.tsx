@@ -14,13 +14,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import { debugFirebaseConfig, testAuthentication, createTestAccount, checkUserExists, getAuthGuidance } from '../../utils/firebaseDebug';
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp } = useAuth();
   const router = useRouter();
 
   const handleEmailAuth = async () => {
@@ -44,16 +45,74 @@ export default function AuthScreen() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  // Debug functions
+  const handleDebugConfig = () => {
+    debugFirebaseConfig();
+    Alert.alert('Debug Info', 'Firebase configuration logged to console. Check the console for details.');
+  };
+
+  const handleTestAuth = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password first');
+      return;
+    }
+    
     setLoading(true);
     try {
-      await signInWithGoogle();
-      router.replace('/(tabs)');
+      const result = await testAuthentication(email, password);
+      if (result.success) {
+        Alert.alert('Test Success', 'Authentication test successful! Check console for details.');
+      } else {
+        Alert.alert('Test Failed', `Authentication test failed: ${result.error.message}\nCheck console for detailed analysis.`);
+      }
     } catch (error: any) {
-      Alert.alert('Authentication Error', error.message);
+      Alert.alert('Test Error', `Test error: ${error.message}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateTest = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password first');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const result = await createTestAccount(email, password);
+      if (result.success) {
+        Alert.alert('Success', 'Test account created successfully! You can now try logging in.');
+      } else {
+        Alert.alert('Failed', `Failed to create test account: ${result.error.message}`);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', `Error creating test account: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckUser = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Please enter an email first');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const exists = await checkUserExists(email);
+      Alert.alert('User Check', exists ? 'User exists!' : 'User does not exist');
+    } catch (error: any) {
+      Alert.alert('Error', `Error checking user: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetGuidance = () => {
+    getAuthGuidance();
+    Alert.alert('Guidance', 'Authentication guidance printed to console. Check the console for detailed solutions.');
   };
 
   return (
@@ -107,19 +166,51 @@ export default function AuthScreen() {
               )}
             </TouchableOpacity>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
+            {/* Debug Buttons */}
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugTitle}>Debug Tools</Text>
+              <View style={styles.debugButtons}>
+                <TouchableOpacity
+                  style={[styles.debugButton, styles.debugButtonSmall]}
+                  onPress={handleDebugConfig}
+                  disabled={loading}
+                >
+                  <Text style={styles.debugButtonText}>Debug Config</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.debugButton, styles.debugButtonSmall]}
+                  onPress={handleTestAuth}
+                  disabled={loading}
+                >
+                  <Text style={styles.debugButtonText}>Test Auth</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.debugButton, styles.debugButtonSmall]}
+                  onPress={handleCreateTest}
+                  disabled={loading}
+                >
+                  <Text style={styles.debugButtonText}>Create Test</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.debugButton, styles.debugButtonSmall]}
+                  onPress={handleCheckUser}
+                  disabled={loading}
+                >
+                  <Text style={styles.debugButtonText}>Check User</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.debugButton, styles.debugButtonSmall]}
+                  onPress={handleGetGuidance}
+                  disabled={loading}
+                >
+                  <Text style={styles.debugButtonText}>Get Help</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <TouchableOpacity
-              style={[styles.button, styles.googleButton]}
-              onPress={handleGoogleSignIn}
-              disabled={loading}
-            >
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
-            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.switchButton}
@@ -195,30 +286,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ddd',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#666',
-    fontSize: 14,
-  },
-  googleButton: {
-    backgroundColor: '#fff',
+  debugContainer: {
+    marginTop: 20,
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#e9ecef',
   },
-  googleButtonText: {
-    color: '#1a1a1a',
-    fontSize: 16,
+  debugTitle: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#666',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  debugButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  debugButton: {
+    backgroundColor: '#6c757d',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  debugButtonSmall: {
+    minWidth: 80,
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   switchButton: {
     marginTop: 16,

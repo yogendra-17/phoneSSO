@@ -32,17 +32,11 @@
           <string>com.googleusercontent.apps.808254346543-636a2mump211q24nrql4s9jdcucjd6gq</string>
         </array>
       </dict>
-      <dict>
-        <key>CFBundleURLName</key>
-        <string>GoogleSignInAlternative</string>
-        <key>CFBundleURLSchemes</key>
-        <array>
-          <string>com.googleusercontent.apps.808254346543-636a2mump211q24nrql4s9jdcucjd6gq</string>
-        </array>
-      </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>GIDClientID</key>
+    <string>808254346543-636a2mump211q24nrql4s9jdcucjd6gq.apps.googleusercontent.com</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
