@@ -74,7 +74,7 @@ export default function HomeScreen() {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <CheckCircle size={24} color="#34C759" />
-          <Text style={styles.cardTitle}>Sepolia Wallet Created Successfully</Text>
+          <Text style={styles.cardTitle}>Ethereum Wallet Created Successfully</Text>
         </View>
         
         {pairingData.wallet && (
@@ -83,7 +83,7 @@ export default function HomeScreen() {
             <View style={styles.walletCard}>
               <View style={styles.walletHeader}>
                 <Wallet size={20} color="#007AFF" />
-                <Text style={styles.walletTitle}>Sepolia Wallet</Text>
+                <Text style={styles.walletTitle}>Ethereum Wallet (Sepolia)</Text>
               </View>
               <View style={styles.addressContainer}>
                 <Text style={styles.addressLabel}>Address:</Text>
@@ -168,10 +168,10 @@ export default function HomeScreen() {
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <View style={styles.welcomeCard}>
           <Shield size={48} color="#007AFF" />
-          <Text style={styles.welcomeTitle}>Welcome to Sepolia Wallet</Text>
+          <Text style={styles.welcomeTitle}>Welcome to Ethereum Wallet</Text>
           <Text style={styles.welcomeText}>
             Your phone is now a secure signing device for your browser wallet. 
-            Pair with your browser to create a Sepolia wallet for transactions.
+            Pair with your browser to create an Ethereum wallet (Sepolia) for transactions.
           </Text>
         </View>
 

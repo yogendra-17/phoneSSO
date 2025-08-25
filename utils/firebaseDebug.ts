@@ -79,8 +79,20 @@ export const debugFirebaseConfig = () => {
     uid: auth.currentUser.uid,
     email: auth.currentUser.email,
     emailVerified: auth.currentUser.emailVerified,
-    providerData: auth.currentUser.providerData.map(p => p.providerId)
+    providerData: auth.currentUser.providerData.map((p: any) => p.providerId)
   } : 'No user signed in');
+  
+  // Check if configuration is valid
+  const requiredFields = ['projectId', 'authDomain', 'apiKey', 'appId'];
+  const missingFields = requiredFields.filter(field => !auth.app.options[field as keyof typeof auth.app.options]);
+  
+  if (missingFields.length > 0) {
+    console.log('❌ MISSING FIREBASE CONFIGURATION:', missingFields);
+    console.log('❌ Please check your environment variables or Firebase configuration');
+  } else {
+    console.log('✅ Firebase configuration appears valid');
+  }
+  
   console.log('=== END FIREBASE CONFIGURATION DEBUG ===');
 };
 

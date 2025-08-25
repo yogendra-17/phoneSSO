@@ -16,7 +16,23 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
   const [pairingStatus, setPairingStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState('');
   const [currentStep, setCurrentStep] = useState<string>('');
+  const [pollingAbortController, setPollingAbortController] = useState<AbortController | null>(null);
   const { user } = useAuth();
+
+  // Cleanup function to stop any ongoing polling
+  const cleanupPolling = () => {
+    if (pollingAbortController) {
+      pollingAbortController.abort();
+      setPollingAbortController(null);
+    }
+  };
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      cleanupPolling();
+    };
+  }, []);
 
   const handleProcessData = async () => {
     if (!sessionDataInput.trim()) {
@@ -40,7 +56,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
       console.log('Data processed successfully:', parsedData);
 
       // Check if it's pairing data
-      if (parsedData.session_id && parsedData.nonce && parsedData.action === 'pair') {
+      if (parsedData.session_id && parsedData.nonce && (parsedData.action === 'pair' || parsedData.action === 'pairing')) {
         await handlePairingFlow(parsedData);
       } else {
         // If it's not pairing data, just return it as before
@@ -61,79 +77,100 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
 
   const handlePairingFlow = async (pairingData: PairingData) => {
     try {
+      console.log('🔥 Starting pairing flow with data:', pairingData);
+      
       setCurrentStep('auth');
       setStatusMessage('Authenticating with orchestrator...');
       
       // Step 1: Get Firebase ID token and authenticate with orchestrator
+      console.log('🔥 Step 1: Getting Firebase ID token...');
       const idToken = await user!.getIdToken();
+      console.log('🔥 Firebase ID token obtained, length:', idToken.length);
+      
+      console.log('🔥 Step 1: Authenticating with orchestrator...');
       await orchestratorService.authenticatePhone(idToken);
+      console.log('✅ Step 1: Authentication successful');
       
       setCurrentStep('claim');
       setStatusMessage('Claiming session...');
       
       // Step 2: Claim the session
-      await orchestratorService.claimSession(pairingData);
+      console.log('🔥 Step 2: Claiming session...');
+      const claimResponse = await orchestratorService.claimSession(pairingData);
+      console.log('✅ Step 2: Session claimed successfully:', claimResponse);
       
-      setCurrentStep('polling');
-      setStatusMessage('Session claimed! Polling for status...');
-      
-      // Step 3: Poll for session status
-      const sessionStatus = await orchestratorService.pollSessionStatus(
-        pairingData.session_id,
-        (status: SessionStatus) => {
-          setStatusMessage(`Session status: ${status.status}`);
+      if (claimResponse.status === 'BOUND') {
+        console.log('✅ Session is BOUND, proceeding to wallet creation...');
+        setCurrentStep('wallet');
+        setStatusMessage('Session bound! Creating Ethereum wallet...');
+        
+        // Step 3: Create wallet and complete keygen process
+        let keygenData = null;
+        let wallet = null;
+        
+        try {
+          console.log('🔥 Step 3: Creating wallet and completing keygen...');
+          keygenData = await orchestratorService.createWalletAndCompleteKeygen(pairingData.session_id);
+          wallet = keygenData.keygenData.wallet;
+          console.log('✅ Step 3: Wallet created and keygen completed:', wallet);
+          
+          setCurrentStep('complete');
+          setStatusMessage('Wallet created and keygen completed!');
+          
+        } catch (keygenError) {
+          console.log('⚠️ Keygen failed, creating wallet locally only:', keygenError);
+          
+          // Create wallet locally without orchestrator keygen
+          console.log('🔥 Creating wallet locally as fallback...');
+          wallet = await orchestratorService.createLocalWallet();
+          console.log('✅ Local wallet created:', wallet);
+          
+          setCurrentStep('complete');
+          setStatusMessage('Wallet created locally!');
         }
-      );
-      
-      setCurrentStep('wallet');
-      setStatusMessage('Session bound! Creating Sepolia wallet...');
-      
-      // Step 4: Create wallet and complete keygen process
-      let keygenData = null;
-      let wallet = null;
-      
-      try {
-        keygenData = await orchestratorService.createWalletAndCompleteKeygen(pairingData.session_id);
-        wallet = keygenData.keygenData.wallet;
         
-        setCurrentStep('complete');
-        setStatusMessage('Wallet created and keygen completed!');
+        console.log('✅ Pairing flow completed successfully!');
+        setPairingStatus('success');
+        setStatusMessage('Successfully paired and created Ethereum wallet!');
         
-      } catch (keygenError) {
-        console.log('⚠️ Keygen failed, creating wallet locally only:', keygenError);
+        // Return the complete pairing and wallet data
+        const successData = {
+          type: 'pairing_success',
+          sessionStatus: {
+            sessionId: pairingData.session_id,
+            status: 'COMPLETE',
+            deviceId: claimResponse.deviceId,
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+            boundAt: new Date().toISOString(),
+          },
+          pairingData,
+          keygenData: keygenData,
+          wallet: wallet
+        };
         
-        // Create wallet locally without orchestrator keygen
-        wallet = await orchestratorService.createLocalWallet();
-        
-        setCurrentStep('complete');
-        setStatusMessage('Wallet created locally!');
+        console.log('🔥 Sending success data to frontend:', successData);
+        onScanSuccess(successData);
+      } else {
+        throw new Error(`Unexpected session status: ${claimResponse.status}`);
       }
-      
-      setPairingStatus('success');
-      setStatusMessage('Successfully paired and created Sepolia wallet!');
-      
-      // Return the complete pairing and wallet data
-      onScanSuccess({
-        type: 'pairing_success',
-        sessionStatus,
-        pairingData,
-        keygenData: keygenData,
-        wallet: wallet
-      });
       
     } catch (error) {
       console.error('Pairing failed:', error);
       setPairingStatus('error');
       setStatusMessage(`Pairing failed at step "${currentStep}": ${error instanceof Error ? error.message : 'Unknown error'}`);
       Alert.alert('Pairing Failed', `Failed at step "${currentStep}": ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+    } finally {
+      // Cleanup polling on completion or error
+      cleanupPolling();
     }
   };
 
   const handlePasteExample = () => {
     const exampleData = {
-      "session_id": "d35e5bdd-93c3-46a8-939f-47359dca13fa",
-      "nonce": "sBoXuZ1X0m19UmM0H8klcWGtZ1YLH7IGfOHQ22SYaoY",
-      "action": "pair",
+      "session_id": "baece324-7c5f-41e5-bf7b-bcad6429e814",
+      "nonce": "5pvQPDuf1YhJe5iQVaS2xWYdv3z0RJEfqUrD1tBRk_E",
+      "action": "pairing",
       "browser_origin": "http://localhost:8082"
     };
     
@@ -252,12 +289,12 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         </View>
 
         <View style={styles.helpCard}>
-          <Text style={styles.helpTitle}>Sepolia Wallet Creation Process:</Text>
+          <Text style={styles.helpTitle}>Ethereum Wallet Creation Process:</Text>
           <Text style={styles.helpText}>
             1. 🔐 Authenticate with orchestrator{'\n'}
             2. 📋 Claim pairing session{'\n'}
-            3. 🔄 Poll for session binding{'\n'}
-            4. 💰 Create Sepolia wallet{'\n'}
+            3. 💰 Create Ethereum wallet (Sepolia){'\n'}
+            4. 🔑 Send public key to orchestrator{'\n'}
             5. ✅ Complete wallet setup{'\n'}
             6. 🎉 Wallet ready for transactions
           </Text>

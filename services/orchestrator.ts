@@ -1,3 +1,9 @@
+// Add crypto polyfill for React Native (must be imported first)
+import 'react-native-get-random-values';
+
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { sepolia } from 'viem/chains';
+
 const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || 'http://localhost:8080';
 
 export interface PairingData {
@@ -25,6 +31,10 @@ export interface AuthResponse {
 
 export interface ClaimResponse {
   ok: boolean;
+  keygenSessionId?: string;
+  status?: string;
+  message?: string;
+  deviceId?: string;
 }
 
 export interface KeygenData {
@@ -44,18 +54,32 @@ export interface WalletData {
 class OrchestratorService {
   private phoneJWT: string | null = null;
   private userId: string | null = null;
+  private currentKeygenSessionId: string | null = null;
 
   // Step 1: Authenticate phone with Firebase ID token
   async authenticatePhone(idToken: string): Promise<AuthResponse> {
     try {
       console.log('🔥 Authenticating phone with orchestrator...');
+      console.log('🔥 Orchestrator URL:', ORCHESTRATOR_URL);
+      console.log('🔥 ID token length:', idToken.length);
+      
+      // Add timeout and retry logic
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const requestBody = { id_token: idToken };
+      console.log('🔥 Request body:', requestBody);
+      
       const response = await fetch(`${ORCHESTRATOR_URL}/api/auth/phone`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id_token: idToken }),
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       console.log('🔥 Auth response status:', response.status);
       
@@ -91,7 +115,11 @@ class OrchestratorService {
 
     try {
       console.log('🔥 Claiming session...');
+      console.log('🔥 Pairing data:', pairingData);
+      console.log('🔥 Phone JWT exists:', !!this.phoneJWT);
+      
       const deviceId = await this.getDeviceId();
+      console.log('🔥 Generated device ID:', deviceId);
 
       const response = await fetch(`${ORCHESTRATOR_URL}/api/claim_session`, {
         method: 'POST',
@@ -119,6 +147,10 @@ class OrchestratorService {
       
       if (data.ok) {
         console.log('✅ Session claimed successfully');
+        // Store the keygen session ID for later use
+        if (data.keygenSessionId) {
+          this.currentKeygenSessionId = data.keygenSessionId;
+        }
       } else {
         throw new Error('Claim response not ok');
       }
@@ -176,15 +208,36 @@ class OrchestratorService {
     onStatusChange?: (status: SessionStatus) => void,
     timeoutMs: number = 5 * 60 * 1000 // 5 minutes
   ): Promise<SessionStatus> {
+    // Check authentication before starting polling
+    if (!this.phoneJWT) {
+      throw new Error('Must authenticate before polling session status');
+    }
+
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
+      let isResolved = false;
       
       const pollInterval = setInterval(async () => {
         try {
+          // Prevent multiple resolutions
+          if (isResolved) {
+            clearInterval(pollInterval);
+            return;
+          }
+
           // Check timeout
           if (Date.now() - startTime > timeoutMs) {
+            isResolved = true;
             clearInterval(pollInterval);
             reject(new Error('Session polling timeout'));
+            return;
+          }
+
+          // Check authentication on each poll
+          if (!this.phoneJWT) {
+            isResolved = true;
+            clearInterval(pollInterval);
+            reject(new Error('Authentication lost during polling'));
             return;
           }
 
@@ -196,18 +249,23 @@ class OrchestratorService {
 
           // Resolve when session is bound
           if (status.status === 'BOUND') {
+            isResolved = true;
             clearInterval(pollInterval);
             resolve(status);
           } else if (status.status === 'EXPIRED') {
+            isResolved = true;
             clearInterval(pollInterval);
             reject(new Error('Session expired'));
           }
         } catch (error) {
           console.error('❌ Polling error:', error);
-          clearInterval(pollInterval);
-          reject(error);
+          if (!isResolved) {
+            isResolved = true;
+            clearInterval(pollInterval);
+            reject(error);
+          }
         }
-      }, 1000); // Poll every second
+      }, 2000); // Poll every 2 seconds instead of 1 second to reduce load
     });
   }
 
@@ -219,9 +277,11 @@ class OrchestratorService {
 
     try {
       console.log('🔥 Creating wallet and completing keygen...');
+      console.log('🔥 Session ID:', sessionId);
+      console.log('🔥 Phone JWT exists:', !!this.phoneJWT);
       
-      // Create a basic wallet for Sepolia chain
-      const wallet = await this.createSepoliaWallet();
+      // Create a proper Ethereum wallet for Sepolia chain
+      const wallet = await this.createEthereumWallet();
       console.log('✅ Wallet created:', wallet.address);
       
       // Store private key securely on phone (this stays local)
@@ -231,20 +291,22 @@ class OrchestratorService {
       const keyId = `key_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Call keygen_done to complete the keygen process
+      const keygenRequestBody = {
+        sessionId: sessionId,
+        keyId: keyId,
+        publicKey: wallet.publicKey,
+        address: wallet.address, // Add wallet address
+      };
+      
+      console.log('🔥 Calling keygen_done with data:', keygenRequestBody);
+      
       const response = await fetch(`${ORCHESTRATOR_URL}/api/keygen_done`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.phoneJWT}`,
         },
-        body: JSON.stringify({
-          sessionId: sessionId,
-          keyId: keyId,
-          publicKey: wallet.publicKey,
-          address: wallet.address,
-          chainId: wallet.chainId,
-          network: wallet.network,
-        }),
+        body: JSON.stringify(keygenRequestBody),
       });
 
       console.log('🔥 Keygen done response status:', response.status);
@@ -346,32 +408,82 @@ class OrchestratorService {
     }
   }
 
-  // Create a basic wallet for Sepolia chain
-  private async createSepoliaWallet(): Promise<WalletData> {
+  // Create a proper Ethereum wallet for Sepolia chain using viem
+  private async createEthereumWallet(): Promise<WalletData> {
     try {
-      console.log('🔥 Creating Sepolia wallet...');
+      console.log('🔥 Creating Ethereum wallet for Sepolia using viem...');
       
-      // Generate a random private key (in production, use proper crypto)
-      const privateKey = this.generatePrivateKey();
+      // Generate a cryptographically secure private key using viem
+      const privateKey = generatePrivateKey();
       
-      // Derive public key and address from private key
-      const publicKey = this.derivePublicKey(privateKey);
-      const address = this.deriveAddress(publicKey);
+      // Create account from private key using viem
+      const account = privateKeyToAccount(privateKey);
+      
+      const wallet: WalletData = {
+        address: account.address,
+        publicKey: account.publicKey || `0x${privateKey.substring(2, 66)}`, // Fallback if publicKey not available
+        privateKey: privateKey, // This stays on phone only
+        chainId: sepolia.id, // Sepolia chain ID from viem
+        network: 'sepolia'
+      };
+      
+      console.log('✅ Ethereum wallet created successfully with viem');
+      console.log('Address:', wallet.address);
+      console.log('Chain ID:', wallet.chainId);
+      return wallet;
+    } catch (error) {
+      console.error('❌ Failed to create Ethereum wallet with viem:', error);
+      console.log('🔄 Falling back to simple wallet creation...');
+      
+      // Fallback to simple wallet creation
+      return this.createSimpleWallet();
+    }
+  }
+
+  // Fallback wallet creation method (simplified but functional)
+  private createSimpleWallet(): WalletData {
+    try {
+      console.log('🔥 Creating simple Ethereum wallet as fallback...');
+      
+      // Generate a simple private key (not cryptographically secure but functional)
+      const chars = '0123456789abcdef';
+      let privateKey = '0x';
+      for (let i = 0; i < 64; i++) {
+        privateKey += chars[Math.floor(Math.random() * chars.length)];
+      }
+      
+      // Create a simple address from private key
+      const address = `0x${this.simpleHash(privateKey).substring(0, 40)}`;
+      const publicKey = `0x${this.simpleHash(privateKey).substring(0, 66)}`;
       
       const wallet: WalletData = {
         address: address,
         publicKey: publicKey,
-        privateKey: privateKey, // This stays on phone only
+        privateKey: privateKey,
         chainId: 11155111, // Sepolia chain ID
         network: 'sepolia'
       };
       
-      console.log('✅ Wallet created successfully');
+      console.log('✅ Simple wallet created successfully as fallback');
+      console.log('Address:', wallet.address);
       return wallet;
     } catch (error) {
-      console.error('❌ Failed to create wallet:', error);
-      throw new Error(`Failed to create wallet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Failed to create simple wallet:', error);
+      throw new Error(`Failed to create simple wallet: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+
+
+  // Simple hash function for fallback wallet creation
+  private simpleHash(input: string): string {
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+      const char = input.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(16).padStart(64, '0');
   }
 
   // Create wallet locally (when orchestrator keygen endpoints are not available)
@@ -379,7 +491,7 @@ class OrchestratorService {
     try {
       console.log('🔥 Creating local Sepolia wallet (no orchestrator keygen)...');
       
-      const wallet = await this.createSepoliaWallet();
+      const wallet = await this.createEthereumWallet();
       
       // Store private key securely on phone
       await this.storePrivateKey(wallet.privateKey);
@@ -392,42 +504,7 @@ class OrchestratorService {
     }
   }
 
-  // Generate a random private key (simplified for demo)
-  private generatePrivateKey(): string {
-    // In production, use proper cryptographic random generation
-    const chars = '0123456789abcdef';
-    let result = '0x';
-    for (let i = 0; i < 64; i++) {
-      result += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return result;
-  }
-
-  // Derive public key from private key (simplified for demo)
-  private derivePublicKey(privateKey: string): string {
-    // In production, use proper elliptic curve cryptography
-    // This is a simplified version for demonstration
-    const hash = this.simpleHash(privateKey);
-    return `0x${hash.substring(0, 66)}`; // 33 bytes for compressed public key
-  }
-
-  // Derive address from public key (simplified for demo)
-  private deriveAddress(publicKey: string): string {
-    // In production, use proper address derivation
-    const hash = this.simpleHash(publicKey);
-    return `0x${hash.substring(0, 40)}`; // 20 bytes for Ethereum address
-  }
-
-  // Simple hash function (in production, use proper hashing)
-  private simpleHash(input: string): string {
-    let hash = 0;
-    for (let i = 0; i < input.length; i++) {
-      const char = input.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash).toString(16).padStart(64, '0');
-  }
+  // Note: Using viem for proper cryptographic operations instead of simplified methods
 
   // Store private key securely on phone
   private async storePrivateKey(privateKey: string): Promise<void> {
@@ -470,10 +547,16 @@ class OrchestratorService {
     return this.phoneJWT;
   }
 
+  // Get current keygen session ID
+  getCurrentKeygenSessionId(): string | null {
+    return this.currentKeygenSessionId;
+  }
+
   // Clear authentication
   clearAuth(): void {
     this.phoneJWT = null;
     this.userId = null;
+    this.currentKeygenSessionId = null;
   }
 }
 

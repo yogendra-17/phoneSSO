@@ -42,6 +42,7 @@
     "react-native": "0.79.2",
     "react-native-calendars": "^1.1312.1",
     "react-native-gesture-handler": "^2.25.0",
+    "react-native-get-random-values": "^1.11.0",
     "react-native-reanimated": "^3.17.5",
     "react-native-safe-area-context": "5.4.1",
     "react-native-screens": "^4.10.0",
@@ -49,7 +50,8 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "^0.20.0",
     "react-native-webview": "13.13.5",
-    "react-redux": "^9.2.0"
+    "react-redux": "^9.2.0",
+    "viem": "^2.35.1"
   },
   "devDependencies": {
     "@babel/core": "^7.27.1",

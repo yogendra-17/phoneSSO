@@ -1,16 +1,26 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User, sendPasswordResetEmail, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Firebase configuration with environment variables and fallbacks
+// Firebase configuration with fallback values for development
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN ,
-  projectId: process.env.FIREBASE_PROJECT_ID ,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET ,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID ,
-  appId: process.env.FIREBASE_APP_ID ,
-  measurementId: process.env.FIREBASE_MEASUREMENT_ID
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "your-project-id.firebaseapp.com",
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "your-project-id",
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "your-project-id.appspot.com",
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789",
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:123456789:web:abcdef123456",
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-XXXXXXXXXX"
 };
+
+// Validate required Firebase configuration
+const requiredFields = ['apiKey', 'authDomain', 'projectId', 'appId'];
+const missingFields = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
+
+if (missingFields.length > 0) {
+  console.error('❌ Missing required Firebase configuration:', missingFields);
+  console.error('Please check your environment variables or .env file');
+}
 
 // Log configuration for debugging (without exposing full API key)
 console.log('Firebase Config Loaded:', {
@@ -23,8 +33,40 @@ console.log('Firebase Config Loaded:', {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Auth
-const auth = getAuth(app);
+// Initialize Firebase Auth with AsyncStorage persistence
+let auth: any;
+try {
+  // Try to initialize with AsyncStorage persistence
+  const { initializeAuth, getReactNativePersistence } = require('firebase/auth/react-native');
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+} catch (error) {
+  console.warn('⚠️ Could not initialize with AsyncStorage, falling back to default auth:', error);
+  // Fallback to default auth
+  auth = getAuth(app);
+}
+
+// Add auth state change listener for debugging
+onAuthStateChanged(auth, (user: any) => {
+  if (user) {
+    console.log('✅ User authenticated:', user.email);
+  } else {
+    console.log('ℹ️ No user authenticated');
+  }
+}, (error: any) => {
+  console.error('❌ Auth state change error:', error);
+});
+
+// Add token refresh error handling
+auth.onIdTokenChanged((user: any) => {
+  if (user) {
+    user.getIdToken(true).catch((error: any) => {
+      console.error('❌ Error refreshing token:', error);
+      // Don't throw here, just log the error
+    });
+  }
+});
 
 // Google Sign-In function (simplified for now)
 export const signInWithGoogle = async () => {

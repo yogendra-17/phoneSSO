@@ -1,11 +1,72 @@
 import React from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, Lock, Moon, Globe, ChevronRight } from 'lucide-react-native';
+import { Bell, Lock, Moon, Globe, ChevronRight, Bug, Wifi, Shield, Wallet } from 'lucide-react-native';
+import { debugOrchestratorState, clearOrchestratorAuth, checkNetworkConnectivity } from '../../utils/debugUtils';
+import { debugFirebaseConfig } from '../../utils/firebaseDebug';
+import { testWalletCreation } from '../../utils/walletTest';
+import { testCompleteFlow } from '../../utils/flowTest';
 
 export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = React.useState(false);
+
+  const debugItems = [
+    {
+      icon: Bug,
+      title: 'Debug Orchestrator State',
+      type: 'action',
+      action: () => {
+        debugOrchestratorState();
+        Alert.alert('Debug', 'Check console for orchestrator state');
+      },
+    },
+    {
+      icon: Shield,
+      title: 'Debug Firebase Config',
+      type: 'action',
+      action: () => {
+        debugFirebaseConfig();
+        Alert.alert('Debug', 'Check console for Firebase configuration');
+      },
+    },
+    {
+      icon: Wifi,
+      title: 'Test Network Connectivity',
+      type: 'action',
+      action: async () => {
+        await checkNetworkConnectivity();
+        Alert.alert('Debug', 'Check console for network connectivity results');
+      },
+    },
+    {
+      icon: Wallet,
+      title: 'Test Wallet Creation',
+      type: 'action',
+      action: async () => {
+        const result = await testWalletCreation();
+        Alert.alert('Debug', result.success ? 'Wallet creation test successful! Check console for details.' : `Wallet creation test failed: ${result.error}`);
+      },
+    },
+    {
+      icon: Bug,
+      title: 'Test Complete Flow',
+      type: 'action',
+      action: async () => {
+        const result = await testCompleteFlow();
+        Alert.alert('Debug', result.success ? 'Complete flow test successful! Check console for details.' : `Complete flow test failed: ${result.error}`);
+      },
+    },
+    {
+      icon: Lock,
+      title: 'Clear Orchestrator Auth',
+      type: 'action',
+      action: () => {
+        clearOrchestratorAuth();
+        Alert.alert('Debug', 'Orchestrator authentication cleared');
+      },
+    },
+  ];
 
   const settingsItems = [
     {
@@ -40,6 +101,7 @@ export default function SettingsScreen() {
       key={index}
       style={styles.settingItem}
       disabled={item.type === 'switch'}
+      onPress={item.type === 'action' ? item.action : undefined}
     >
       <View style={styles.settingLeft}>
         <View style={styles.settingIcon}>
@@ -74,6 +136,12 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
         
         <View style={styles.settingsSection}>
+          <Text style={styles.sectionTitle}>Debug Tools</Text>
+          {debugItems.map(renderSettingItem)}
+        </View>
+        
+        <View style={[styles.settingsSection, { marginTop: 20 }]}>
+          <Text style={styles.sectionTitle}>General Settings</Text>
           {settingsItems.map(renderSettingItem)}
         </View>
       </View>
@@ -142,5 +210,13 @@ const styles = StyleSheet.create({
   },
   settingRight: {
     alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
 });
